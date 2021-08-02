@@ -26,11 +26,14 @@ find_package(catkin QUIET COMPONENTS
   tf2_geometry_msgs
   actionlib
   move_base_msgs
+  geometry_msgs
+  clobot_msgs
 )
 
 if (catkin_FOUND)
 
   find_package(free_fleet REQUIRED)
+  find_package(clobot_msgs REQUIRED)
 
   catkin_package()
 

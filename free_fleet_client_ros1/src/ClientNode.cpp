@@ -38,16 +38,19 @@ ClientNode::SharedPtr ClientNode::make(const ClientNodeConfig& _config)
   /// Setting up the move base action client, wait for server
   ROS_INFO("waiting for connection with move base action server: %s",
       _config.move_base_server_name.c_str());
+
+  // lucy
   MoveBaseClientSharedPtr move_base_client(
       new MoveBaseClient(_config.move_base_server_name, true));
-  if (!move_base_client->waitForServer(ros::Duration(_config.wait_timeout)))
-  {
-    ROS_ERROR("timed out waiting for action server: %s",
-        _config.move_base_server_name.c_str());
-    return nullptr;
-  }
+  // if (!move_base_client->waitForServer(ros::Duration(_config.wait_timeout)))
+  // {
+  //   ROS_ERROR("timed out waiting for action server: %s",
+  //       _config.move_base_server_name.c_str());
+  //   return nullptr;
+  // }
   ROS_INFO("connected with move base action server: %s",
       _config.move_base_server_name.c_str());
+
 
   /// Setting up the docking server client, if required, wait for server
   std::unique_ptr<ros::ServiceClient> docking_trigger_client = nullptr;
@@ -65,6 +68,13 @@ ClientNode::SharedPtr ClientNode::make(const ClientNodeConfig& _config)
       return nullptr;
     }
   }
+
+  // client_node->start(Fields{
+  //     std::move(client),
+  //     std::move(move_base_client),
+  //     std::move(docking_trigger_client)
+  // });
+
 
   client_node->start(Fields{
       std::move(client),
@@ -106,6 +116,11 @@ void ClientNode::start(Fields _fields)
       client_node_config.battery_state_topic, 1,
       &ClientNode::battery_state_callback_fn, this);
 
+  // lucy
+  amcl_sub_ = node->subscribe("/"+client_node_config.robot_name+"/amcl_pose", 10, &ClientNode::amclCallback, this);
+  status_sub_ = node->subscribe("/"+client_node_config.robot_name+"/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
+  goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/"+client_node_config.robot_name+"/goal", 1);
+
   request_error = false;
   emergency = false;
   paused = false;
@@ -130,6 +145,20 @@ void ClientNode::battery_state_callback_fn(
   current_battery_state = _msg;
 }
 
+
+void ClientNode::amclCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg){
+
+  new_stamped_.header.stamp.sec = msg->header.stamp.sec;
+  new_stamped_.header.stamp.nsec = msg->header.stamp.nsec;
+  new_stamped_.transform.translation.x = msg->pose.pose.position.x;
+  new_stamped_.transform.translation.y = msg->pose.pose.position.y;
+  new_stamped_.transform.rotation = msg->pose.pose.orientation;
+  
+  
+  std::cout << "amcl pose x : "<<new_stamped_.transform.translation.x<<std::endl;
+}
+
+
 bool ClientNode::get_robot_transform()
 {
   try {
@@ -138,9 +167,16 @@ bool ClientNode::get_robot_transform()
             client_node_config.map_frame,
             client_node_config.robot_frame,
             ros::Time(0));
+
+    // WriteLock robot_transform_lock(robot_transform_mutex);
+    // previous_robot_transform = current_robot_transform;
+    // current_robot_transform = tmp_transform_stamped;
+
+    // lucy
     WriteLock robot_transform_lock(robot_transform_mutex);
     previous_robot_transform = current_robot_transform;
-    current_robot_transform = tmp_transform_stamped;
+    current_robot_transform = new_stamped_;
+
   }
   catch (tf2::TransformException &ex) {
     ROS_WARN("%s", ex.what());
@@ -172,9 +208,14 @@ messages::RobotMode ClientNode::get_robot_mode()
   {
     ReadLock robot_transform_lock(robot_transform_mutex);
 
-    if (!is_transform_close(
-        current_robot_transform, previous_robot_transform))
+    if ( cmbStatus_.status == clobot_msgs::NavigationStatus::STATUS_CONTROLLING){
+      std::cout <<" moving status "<<std::endl;
       return messages::RobotMode{messages::RobotMode::MODE_MOVING};
+    } 
+
+    // if (!is_transform_close(
+    //     current_robot_transform, previous_robot_transform))
+    //   return messages::RobotMode{messages::RobotMode::MODE_MOVING};
   }
   
   /// Otherwise, robot is neither charging nor moving,
@@ -224,21 +265,38 @@ void ClientNode::publish_robot_state()
 
   new_robot_state.path.clear();
   {
-    ReadLock goal_path_lock(goal_path_mutex);
+    // ReadLock goal_path_lock(goal_path_mutex);
 
-    for (size_t i = 0; i < goal_path.size(); ++i)
+    // for (size_t i = 0; i < goal_path.size(); ++i)
+    // {
+    //   new_robot_state.path.push_back(
+    //       messages::Location{
+    //           (int32_t)goal_path[i].goal.target_pose.header.stamp.sec,
+    //           goal_path[i].goal.target_pose.header.stamp.nsec,
+    //           (float)goal_path[i].goal.target_pose.pose.position.x,
+    //           (float)goal_path[i].goal.target_pose.pose.position.y,
+    //           (float)(get_yaw_from_quat(
+    //               goal_path[i].goal.target_pose.pose.orientation)),
+    //           goal_path[i].level_name
+    //       });
+    // }
+
+
+    ReadLock goal_path_lock(goal_path_mutex);
+    for (size_t i = 0; i < goal_q_.size(); ++i)
     {
       new_robot_state.path.push_back(
           messages::Location{
-              (int32_t)goal_path[i].goal.target_pose.header.stamp.sec,
-              goal_path[i].goal.target_pose.header.stamp.nsec,
-              (float)goal_path[i].goal.target_pose.pose.position.x,
-              (float)goal_path[i].goal.target_pose.pose.position.y,
+              (int32_t)goal_q_[i].goal.header.stamp.sec,
+              goal_q_[i].goal.header.stamp.nsec,
+              (float)goal_q_[i].goal.pose.position.x,
+              (float)goal_q_[i].goal.pose.position.y,
               (float)(get_yaw_from_quat(
-                  goal_path[i].goal.target_pose.pose.orientation)),
-              goal_path[i].level_name
+                  goal_q_[i].goal.pose.orientation)),
+              goal_q_[i].level_name
           });
     }
+
   }
 
   if (!fields.client->send_robot_state(new_robot_state))
@@ -272,6 +330,19 @@ move_base_msgs::MoveBaseGoal ClientNode::location_to_move_base_goal(
   return goal;
 }
 
+geometry_msgs::PoseStamped ClientNode::location_to_cmb_goal(const messages::Location& _location) const{
+  geometry_msgs::PoseStamped goal;
+  goal.header.frame_id = client_node_config.map_frame;
+  goal.header.stamp.sec = _location.sec;
+  goal.header.stamp.nsec = _location.nanosec;
+  goal.pose.position.x = _location.x;
+  goal.pose.position.y = _location.y;
+  goal.pose.position.z = 0.0; // TODO: handle Z height with level
+  goal.pose.orientation = get_quat_from_yaw(_location.yaw);
+  return goal;
+}
+
+
 bool ClientNode::read_mode_request()
 {
   messages::ModeRequest mode_request;
@@ -284,7 +355,7 @@ bool ClientNode::read_mode_request()
     {
       ROS_INFO("received a PAUSE command.");
 
-      fields.move_base_client->cancelAllGoals();
+      // fields.move_base_client->cancelAllGoals();
       WriteLock goal_path_lock(goal_path_mutex);
       if (!goal_path.empty())
         goal_path[0].sent = false;
@@ -338,7 +409,9 @@ bool ClientNode::read_path_request()
       is_valid_request(
           path_request.fleet_name, path_request.robot_name,
           path_request.task_id))
-  {
+  { 
+    std::cout <<"valid path request"<<std::endl;
+
     ROS_INFO("received a Path command of size %lu.", path_request.path.size());
 
     if (path_request.path.size() <= 0)
@@ -365,7 +438,7 @@ bool ClientNode::read_path_request()
             "waiting for next valid request.\n",
             client_node_config.max_dist_to_first_waypoint);
         
-        fields.move_base_client->cancelAllGoals();
+        // fields.move_base_client->cancelAllGoals();
         WriteLock goal_path_lock(goal_path_mutex);
         goal_path.clear();
 
@@ -388,6 +461,19 @@ bool ClientNode::read_path_request()
               ros::Time(
                   path_request.path[i].sec, path_request.path[i].nanosec)});
     }
+
+    goal_q_.clear();
+    for(size_t i = 0; i < path_request.path.size(); ++i){
+      goal_q_.push_back(
+        cmbGoal{
+          path_request.path[i].level_name,
+          location_to_cmb_goal(path_request.path[i]),
+          false,
+          ros::Time(path_request.path[i].sec, path_request.path[i].nanosec)
+        }
+      );
+    }
+    
 
     WriteLock task_id_lock(task_id_mutex);
     current_task_id = path_request.task_id;
@@ -444,6 +530,13 @@ void ClientNode::read_requests()
     return;
 }
 
+
+void ClientNode::cmbStatusCallback(const clobot_msgs::NavigationStatus::ConstPtr& msg){
+  cmbStatus_.status = msg->status;
+}
+
+
+
 void ClientNode::handle_requests()
 {
   // there is an emergency or the robot is paused
@@ -452,54 +545,110 @@ void ClientNode::handle_requests()
 
   // ooooh we have goals
   WriteLock goal_path_lock(goal_path_mutex);
-  if (!goal_path.empty())
+  if (!goal_q_.empty())
   {
     // Goals must have been updated since last handling, execute them now
-    if (!goal_path.front().sent)
+    if (!goal_q_.front().sent)
     {
       ROS_INFO("sending next goal.");
-      fields.move_base_client->sendGoal(goal_path.front().goal);
-      goal_path.front().sent = true;
+      goal_pub_.publish(goal_q_.front().goal);
+
+      std::cout <<"goal coord x : "<<goal_q_.front().goal.pose.position.x<<std::endl;
+      std::cout <<"goal coord y : "<<goal_q_.front().goal.pose.position.y<<std::endl;
+
+      // fields.move_base_client->sendGoal(goal_path.front().goal);
+      goal_q_.front().sent = true;
       return;
     }
 
+
     // Goals have been sent, check the goal states now
-    GoalState current_goal_state = fields.move_base_client->getState();
-    if (current_goal_state == GoalState::SUCCEEDED)
+    // GoalState current_goal_state = fields.move_base_client->getState();
+    
+    if( cmbStatus_.status == clobot_msgs::NavigationStatus::STATUS_REACHED)
     {
       ROS_INFO("current goal state: SUCCEEEDED.");
-
       // By some stroke of good fortune, we may have arrived at our goal
       // earlier than we were scheduled to reach it. If that is the case,
       // we need to wait here until it's time to proceed.
-      if (ros::Time::now() >= goal_path.front().goal_end_time)
+      if (ros::Time::now() >= goal_q_.front().goal_end_time)
       {
-        goal_path.pop_front();
+        goal_q_.pop_front();
       }
       else
       {
         ros::Duration wait_time_remaining =
-            goal_path.front().goal_end_time - ros::Time::now();
+            goal_q_.front().goal_end_time - ros::Time::now();
         ROS_INFO(
             "we reached our goal early! Waiting %.1f more seconds",
             wait_time_remaining.toSec());
       }
       return;
-    }
-    else if (current_goal_state == GoalState::ACTIVE)
-    {
+    }else{
       return;
-    }
-    else
-    {
-      ROS_INFO(
-          "current goal state: %s", current_goal_state.toString().c_str());
-      ROS_INFO("Client: no idea what to do now, doh!");
     }
   }
   
   // otherwise, mode is correct, nothing in queue, nothing else to do then
 }
+
+// void ClientNode::handle_requests()
+// {
+//   // there is an emergency or the robot is paused
+//   if (emergency || request_error || paused)
+//     return;
+
+//   // ooooh we have goals
+//   WriteLock goal_path_lock(goal_path_mutex);
+//   if (!goal_path.empty())
+//   {
+//     // Goals must have been updated since last handling, execute them now
+//     if (!goal_path.front().sent)
+//     {
+//       ROS_INFO("sending next goal.");
+//       // fields.move_base_client->sendGoal(goal_path.front().goal);
+//       goal_path.front().sent = true;
+//       return;
+//     }
+
+//     // Goals have been sent, check the goal states now
+//     // GoalState current_goal_state = fields.move_base_client->getState();
+//     GoalState current_goal_state;
+//     if (current_goal_state == GoalState::SUCCEEDED)
+//     {
+//       ROS_INFO("current goal state: SUCCEEEDED.");
+
+//       // By some stroke of good fortune, we may have arrived at our goal
+//       // earlier than we were scheduled to reach it. If that is the case,
+//       // we need to wait here until it's time to proceed.
+//       if (ros::Time::now() >= goal_path.front().goal_end_time)
+//       {
+//         goal_path.pop_front();
+//       }
+//       else
+//       {
+//         ros::Duration wait_time_remaining =
+//             goal_path.front().goal_end_time - ros::Time::now();
+//         ROS_INFO(
+//             "we reached our goal early! Waiting %.1f more seconds",
+//             wait_time_remaining.toSec());
+//       }
+//       return;
+//     }
+//     else if (current_goal_state == GoalState::ACTIVE)
+//     {
+//       return;
+//     }
+//     else
+//     {
+//       ROS_INFO(
+//           "current goal state: %s", current_goal_state.toString().c_str());
+//       ROS_INFO("Client: no idea what to do now, doh!");
+//     }
+//   }
+  
+//   // otherwise, mode is correct, nothing in queue, nothing else to do then
+// }
 
 void ClientNode::update_thread_fn()
 {

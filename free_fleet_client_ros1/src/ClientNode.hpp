@@ -41,6 +41,14 @@
 
 #include "ClientNodeConfig.hpp"
 
+// lucy
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <iostream>
+#include <geometry_msgs/PoseStamped.h>
+#include <clobot_msgs/NavigationStatus.h>
+
+
+
 namespace free_fleet
 {
 namespace ros1
@@ -76,6 +84,11 @@ public:
   };
 
   void print_config();
+
+  // lucy
+  void amclCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg);
+  void cmbStatusCallback(const clobot_msgs::NavigationStatus::ConstPtr& msg);
+
 
 private:
 
@@ -191,6 +204,25 @@ private:
   ClientNode(const ClientNodeConfig& config);
 
   void start(Fields fields);
+
+  // --------------------------------------------------------------------------
+  // lucy
+  ros::Subscriber amcl_sub_, status_sub_;
+  geometry_msgs::TransformStamped new_stamped_;
+  ros::Publisher goal_pub_;
+
+  struct cmbGoal
+  {
+    std::string level_name;
+    geometry_msgs::PoseStamped goal;
+    bool sent = false;
+    ros::Time goal_end_time;
+  };
+
+  std::deque<cmbGoal> goal_q_;
+
+  geometry_msgs::PoseStamped location_to_cmb_goal(const messages::Location& _location) const;
+  clobot_msgs::NavigationStatus cmbStatus_;
 
 };
 
