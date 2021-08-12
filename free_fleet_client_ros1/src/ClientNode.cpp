@@ -117,9 +117,13 @@ void ClientNode::start(Fields _fields)
       &ClientNode::battery_state_callback_fn, this);
 
   // lucy
-  amcl_sub_ = node->subscribe("/"+client_node_config.robot_name+"/amcl_pose", 10, &ClientNode::amclCallback, this);
-  status_sub_ = node->subscribe("/"+client_node_config.robot_name+"/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
-  goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/"+client_node_config.robot_name+"/goal", 1);
+  // amcl_sub_ = node->subscribe("/"+client_node_config.robot_name+"/amcl_pose", 10, &ClientNode::amclCallback, this);
+  // status_sub_ = node->subscribe("/"+client_node_config.robot_name+"/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
+  // goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/"+client_node_config.robot_name+"/goal", 1);
+
+  amcl_sub_ = node->subscribe("/amcl_pose", 10, &ClientNode::amclCallback, this);
+  status_sub_ = node->subscribe("/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
+  goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/goal", 1);
 
   request_error = false;
   emergency = false;
