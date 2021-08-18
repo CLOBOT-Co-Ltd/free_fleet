@@ -157,9 +157,8 @@ void ClientNode::amclCallback(const geometry_msgs::PoseWithCovarianceStamped::Co
   new_stamped_.transform.translation.x = msg->pose.pose.position.x;
   new_stamped_.transform.translation.y = msg->pose.pose.position.y;
   new_stamped_.transform.rotation = msg->pose.pose.orientation;
-  
-  
-  std::cout << "amcl pose x : "<<new_stamped_.transform.translation.x<<std::endl;
+    
+  // std::cout << "amcl pose x : "<<new_stamped_.transform.translation.x<<std::endl;
 }
 
 
@@ -179,8 +178,13 @@ bool ClientNode::get_robot_transform()
     // lucy
     WriteLock robot_transform_lock(robot_transform_mutex);
     previous_robot_transform = current_robot_transform;
-    current_robot_transform = new_stamped_;
+    // current_robot_transform = new_stamped_;
 
+    current_robot_transform.header.stamp.sec = tmp_transform_stamped.header.stamp.sec;
+    current_robot_transform.header.stamp.nsec = tmp_transform_stamped.header.stamp.nsec;
+    current_robot_transform.transform.translation.x = new_stamped_.transform.translation.x;
+    current_robot_transform.transform.translation.y = new_stamped_.transform.translation.y;
+    current_robot_transform.transform.rotation = new_stamped_.transform.rotation;
   }
   catch (tf2::TransformException &ex) {
     ROS_WARN("%s", ex.what());
@@ -213,7 +217,7 @@ messages::RobotMode ClientNode::get_robot_mode()
     ReadLock robot_transform_lock(robot_transform_mutex);
 
     if ( cmbStatus_.status == clobot_msgs::NavigationStatus::STATUS_CONTROLLING){
-      std::cout <<" moving status "<<std::endl;
+      // std::cout <<" moving status "<<std::endl;
       return messages::RobotMode{messages::RobotMode::MODE_MOVING};
     } 
 
@@ -540,7 +544,6 @@ void ClientNode::cmbStatusCallback(const clobot_msgs::NavigationStatus::ConstPtr
 }
 
 
-
 void ClientNode::handle_requests()
 {
   // there is an emergency or the robot is paused
@@ -557,6 +560,7 @@ void ClientNode::handle_requests()
       ROS_INFO("sending next goal.");
       goal_pub_.publish(goal_q_.front().goal);
 
+      std::cout <<"remain goal count : "<<goal_q_.size() << std::endl;
       std::cout <<"goal coord x : "<<goal_q_.front().goal.pose.position.x<<std::endl;
       std::cout <<"goal coord y : "<<goal_q_.front().goal.pose.position.y<<std::endl;
 
@@ -575,18 +579,21 @@ void ClientNode::handle_requests()
       // By some stroke of good fortune, we may have arrived at our goal
       // earlier than we were scheduled to reach it. If that is the case,
       // we need to wait here until it's time to proceed.
-      if (ros::Time::now() >= goal_q_.front().goal_end_time)
-      {
+
         goal_q_.pop_front();
-      }
-      else
-      {
-        ros::Duration wait_time_remaining =
-            goal_q_.front().goal_end_time - ros::Time::now();
-        ROS_INFO(
-            "we reached our goal early! Waiting %.1f more seconds",
-            wait_time_remaining.toSec());
-      }
+
+      // if (ros::Time::now() >= goal_q_.front().goal_end_time)
+      // {
+      //   goal_q_.pop_front();
+      // }
+      // else
+      // {
+      //   ros::Duration wait_time_remaining =
+      //       goal_q_.front().goal_end_time - ros::Time::now();
+      //   ROS_INFO(
+      //       "we reached our goal early! Waiting %.1f more seconds",
+      //       wait_time_remaining.toSec());
+      // }
       return;
     }else{
       return;
