@@ -24,7 +24,7 @@ namespace free_fleet {
 
 struct ServerConfig
 {
-  int dds_domain = 42;
+  int dds_domain = 123;
   std::string dds_robot_state_topic = "robot_state";
   std::string dds_mode_request_topic = "mode_request";
   std::string dds_path_request_topic = "path_request";
