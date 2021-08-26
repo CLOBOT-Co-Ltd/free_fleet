@@ -39,7 +39,6 @@ ClientNode::SharedPtr ClientNode::make(const ClientNodeConfig& _config)
   ROS_INFO("waiting for connection with move base action server: %s",
       _config.move_base_server_name.c_str());
 
-  // lucy
   MoveBaseClientSharedPtr move_base_client(
       new MoveBaseClient(_config.move_base_server_name, true));
   // if (!move_base_client->waitForServer(ros::Duration(_config.wait_timeout)))
@@ -116,14 +115,13 @@ void ClientNode::start(Fields _fields)
       client_node_config.battery_state_topic, 1,
       &ClientNode::battery_state_callback_fn, this);
 
-  // lucy
-  // amcl_sub_ = node->subscribe("/"+client_node_config.robot_name+"/amcl_pose", 10, &ClientNode::amclCallback, this);
-  // status_sub_ = node->subscribe("/"+client_node_config.robot_name+"/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
-  // goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/"+client_node_config.robot_name+"/goal", 1);
+  amcl_sub_ = node->subscribe("/"+client_node_config.robot_name+"/amcl_pose", 10, &ClientNode::amclCallback, this);
+  status_sub_ = node->subscribe("/"+client_node_config.robot_name+"/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
+  goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/"+client_node_config.robot_name+"/goal", 1);
 
-  amcl_sub_ = node->subscribe("/amcl_pose", 10, &ClientNode::amclCallback, this);
-  status_sub_ = node->subscribe("/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
-  goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/goal", 1);
+  // amcl_sub_ = node->subscribe("/amcl_pose", 10, &ClientNode::amclCallback, this);
+  // status_sub_ = node->subscribe("/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
+  // goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/goal", 1);
 
   request_error = false;
   emergency = false;
@@ -507,16 +505,29 @@ bool ClientNode::read_destination_request()
         destination_request.destination.x, destination_request.destination.y,
         destination_request.destination.yaw);
     
+
     WriteLock goal_path_lock(goal_path_mutex);
-    goal_path.clear();
-    goal_path.push_back(
-        Goal {
+    goal_q_.clear();
+    goal_q_.push_back(
+        cmbGoal {
             destination_request.destination.level_name,
-            location_to_move_base_goal(destination_request.destination),
+            location_to_cmb_goal(destination_request.destination),
             false,
             ros::Time(
                 destination_request.destination.sec, 
                 destination_request.destination.nanosec)});
+
+
+    // WriteLock goal_path_lock(goal_path_mutex);
+    // goal_path.clear();
+    // goal_path.push_back(
+    //     Goal {
+    //         destination_request.destination.level_name,
+    //         location_to_move_base_goal(destination_request.destination),
+    //         false,
+    //         ros::Time(
+    //             destination_request.destination.sec, 
+    //             destination_request.destination.nanosec)});
 
     WriteLock task_id_lock(task_id_mutex);
     current_task_id = destination_request.task_id;
