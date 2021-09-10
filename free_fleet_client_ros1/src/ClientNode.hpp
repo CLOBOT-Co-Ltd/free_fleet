@@ -41,12 +41,11 @@
 
 #include "ClientNodeConfig.hpp"
 
-// lucy
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <iostream>
 #include <geometry_msgs/PoseStamped.h>
 #include <clobot_msgs/NavigationStatus.h>
-
+#include <std_msgs/Empty.h>
 
 
 namespace free_fleet
@@ -209,7 +208,7 @@ private:
   // lucy
   ros::Subscriber amcl_sub_, status_sub_;
   geometry_msgs::TransformStamped new_stamped_;
-  ros::Publisher goal_pub_;
+  ros::Publisher goal_pub_, cancel_pub_;
 
   struct cmbGoal
   {

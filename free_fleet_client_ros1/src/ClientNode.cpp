@@ -118,6 +118,7 @@ void ClientNode::start(Fields _fields)
   amcl_sub_ = node->subscribe("/"+client_node_config.robot_name+"/amcl_pose", 10, &ClientNode::amclCallback, this);
   status_sub_ = node->subscribe("/"+client_node_config.robot_name+"/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
   goal_pub_ = node->advertise<geometry_msgs::PoseStamped>("/"+client_node_config.robot_name+"/goal", 1);
+  cancel_pub_ = node->advertise<std_msgs::Empty>("/"+client_node_config.robot_name+"/cmb/cancel", 1);
 
   // amcl_sub_ = node->subscribe("/amcl_pose", 10, &ClientNode::amclCallback, this);
   // status_sub_ = node->subscribe("/cmb/status", 10, &ClientNode::cmbStatusCallback, this);
@@ -362,9 +363,13 @@ bool ClientNode::read_mode_request()
       ROS_INFO("received a PAUSE command.");
 
       // fields.move_base_client->cancelAllGoals();
+      std_msgs::Empty cancel;
+      
+      cancel_pub_.publish(cancel);
+
       WriteLock goal_path_lock(goal_path_mutex);
-      if (!goal_path.empty())
-        goal_path[0].sent = false;
+      if (!goal_q_.empty())
+        goal_q_[0].sent = false;
 
       paused = true;
       emergency = false;
