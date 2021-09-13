@@ -71,7 +71,8 @@ public:
     }
 
     dds_qos_t* qos = dds_create_qos();
-    dds_qset_reliability(qos, DDS_RELIABILITY_BEST_EFFORT, 0);
+    dds_qset_reliability(qos, DDS_RELIABILITY_RELIABLE, 0);
+    dds_qset_history(qos, DDS_HISTORY_KEEP_ALL, 10);
     reader = dds_create_reader(_participant, topic, qos, NULL);
     if (reader < 0)
     {

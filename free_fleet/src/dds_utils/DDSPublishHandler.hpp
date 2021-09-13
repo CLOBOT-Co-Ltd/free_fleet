@@ -63,7 +63,7 @@ public:
     }
 
     dds_qos_t* qos = dds_create_qos();
-    dds_qset_reliability(qos, DDS_RELIABILITY_BEST_EFFORT, 0);
+    dds_qset_reliability(qos, DDS_RELIABILITY_RELIABLE, 0);
     writer = dds_create_writer(_participant, topic, qos, NULL);
     if (writer < 0)
     {
