@@ -390,8 +390,9 @@ void ServerNode::publish_fleet_state()
     rmf_frame_rs.model = fleet_frame_rs.model;
     rmf_frame_rs.task_id = fleet_frame_rs.task_id;
     rmf_frame_rs.mode = fleet_frame_rs.mode;
-    rmf_frame_rs.battery_percent = fleet_frame_rs.battery_percent;
-  
+    // rmf_frame_rs.battery_percent = fleet_frame_rs.battery_percent;
+    rmf_frame_rs.battery_percent = 100.0;
+    
     rmf_frame_rs.path.clear();
     for (const auto& fleet_frame_path_loc : fleet_frame_rs.path)
     {
