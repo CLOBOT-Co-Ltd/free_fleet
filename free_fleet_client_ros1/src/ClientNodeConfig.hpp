@@ -54,7 +54,7 @@ struct ClientNodeConfig
 
   double wait_timeout = 10.0;
   double update_frequency = 10.0;
-  double publish_frequency = 1.0;
+  double publish_frequency = 10.0;
 
   double max_dist_to_first_waypoint = 10.0;
 
