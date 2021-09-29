@@ -41,12 +41,12 @@ ClientNode::SharedPtr ClientNode::make(const ClientNodeConfig& _config)
 
   MoveBaseClientSharedPtr move_base_client(
       new MoveBaseClient(_config.move_base_server_name, true));
-  if (!move_base_client->waitForServer(ros::Duration(_config.wait_timeout)))
-  {
-    ROS_ERROR("timed out waiting for action server: %s",
-        _config.move_base_server_name.c_str());
-    return nullptr;
-  }
+  // if (!move_base_client->waitForServer(ros::Duration(_config.wait_timeout)))
+  // {
+  //   ROS_ERROR("timed out waiting for action server: %s",
+  //       _config.move_base_server_name.c_str());
+  //   return nullptr;
+  // }
   ROS_INFO("connected with move base action server: %s",
       _config.move_base_server_name.c_str());
 
